@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f8f5ed">
+<title>Brain Dump</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<header><div class="brand"><span aria-hidden="true">✳</span> BRAIN DUMP</div><button id="quick" type="button">＋ New capture</button></header>
+<main>
+<section class="hero">
+<div class="intro"><h1>Get it out of<br>your <em>head.</em></h1><p>A place for your ideas, little to-dos, and links worth keeping.</p><div class="spark" aria-hidden="true">✳</div></div>
+<form id="capture">
+<h2>Quick capture</h2>
+<input id="title" placeholder="Title (optional)" aria-label="Title (optional)" maxlength="120">
+<textarea id="message" placeholder="Drop a thought, paste a link, or write a list with one item per line…" aria-label="Text to save" required maxlength="20000"></textarea>
+<div class="form-footer"><select id="type" aria-label="Capture type"><option value="">Auto-sort</option><option>Notes</option><option>Ideas</option><option>Checklists</option><option>Links</option></select><button type="submit">Save it <span aria-hidden="true">↗</span></button></div>
+</form>
+</section>
+<section class="board" aria-labelledby="board-title">
+<div class="board-head"><h2 id="board-title">Your board</h2><input id="search" type="search" placeholder="Search your captures…" aria-label="Search by name, type, tag, or text"></div>
+<nav id="filters" aria-label="Filter captures"></nav>
+<p id="status" role="status"></p>
+<div id="cards"></div>
+</section>
+</main>
+</body>
+</html>

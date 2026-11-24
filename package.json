@@ -1,0 +1,1 @@
+{"name":"brain-dump","version":"1.0.0","private":true,"engines":{"node":">=24"},"scripts":{"start":"node --env-file-if-exists=.env server.mjs"}}
