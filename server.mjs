@@ -4,10 +4,13 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { capture } from './capture.mjs';
 
-const { APP_PASSWORD, TWILIO_AUTH_TOKEN, SMS_FROM, PUBLIC_URL, PORT = '3000', DATA_DIR = './data' } = process.env;
+const { APP_PASSWORD, TWILIO_AUTH_TOKEN, SMS_FROM, GOOGLE_VOICE_SECRET, PUBLIC_URL, PORT = '3000', DATA_DIR = './data' } = process.env;
 const webhook = PUBLIC_URL ? new URL('/sms', PUBLIC_URL).href : '';
 if (PUBLIC_URL && (!APP_PASSWORD || !webhook.startsWith('https://'))) {
   throw new Error('Set APP_PASSWORD and an HTTPS PUBLIC_URL for hosting.');
+}
+if (GOOGLE_VOICE_SECRET && GOOGLE_VOICE_SECRET.length < 32) {
+  throw new Error('GOOGLE_VOICE_SECRET must contain at least 32 characters.');
 }
 mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(DATA_DIR + '/brain-dump.sqlite');
@@ -20,6 +23,20 @@ const staticFiles = {
   '/app.js': ['app.js', 'text/javascript'],
   '/style.css': ['style.css', 'text/css']
 };
+
+function saveIncoming(id, text) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (db.prepare('INSERT OR IGNORE INTO received VALUES (?)').run(id).changes) {
+      const card = capture(text);
+      insert.run(randomUUID(), JSON.stringify(card), card.created);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
 
 async function bodyOf(req) {
   const chunks = [];
@@ -53,19 +70,25 @@ createServer(async (req, res) => {
       const sid = fields.get('MessageSid');
       const text = fields.get('Body')?.trim();
       if (!sid || !text) return send(400, { error: 'A message ID and text are required' });
-      db.exec('BEGIN IMMEDIATE');
-      try {
-        if (db.prepare('INSERT OR IGNORE INTO received VALUES (?)').run(sid).changes) {
-          const card = capture(text);
-          insert.run(randomUUID(), JSON.stringify(card), card.created);
-        }
-        db.exec('COMMIT');
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
+      saveIncoming(sid, text);
       res.writeHead(200, { 'Content-Type': 'text/xml' });
       return res.end('<Response/>');
+    }
+    if (req.url === '/google-voice' && req.method === 'POST') {
+      if (!GOOGLE_VOICE_SECRET || !webhook) return send(503, { error: 'Google Voice import is not configured' });
+      if (!equal(req.headers.authorization || '', 'Bearer ' + GOOGLE_VOICE_SECRET)) {
+        return send(403, { error: 'Import authorization failed' });
+      }
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') {
+        return send(415, { error: 'JSON required' });
+      }
+      const { id, text } = JSON.parse(await bodyOf(req));
+      if (typeof id !== 'string' || !/^[a-z0-9_-]{1,128}$/i.test(id) ||
+          typeof text !== 'string' || !text.trim() || text.length > 16000) {
+        return send(400, { error: 'Invalid message ID or text' });
+      }
+      saveIncoming('gmail:' + id, text.trim());
+      return send(200, { ok: true });
     }
     if (APP_PASSWORD && !equal(req.headers.authorization || '', 'Basic ' + Buffer.from('brain:' + APP_PASSWORD).toString('base64'))) {
       res.setHeader('WWW-Authenticate', 'Basic realm="Brain Dump", charset="UTF-8"');

@@ -29,3 +29,15 @@ Deploy this as a Node service with HTTPS and a persistent disk. Set `DATA_DIR` t
 In Twilio, configure an SMS-capable number's incoming-message webhook to send HTTP POST requests to `https://your-app.example/sms`. Use the exact public URL, with no trailing slash after `/sms` or query string. Text that number to add cards. The board refreshes every five seconds while visible. The webhook verifies [Twilio's signature](https://www.twilio.com/docs/usage/security#validating-requests), accepts your configured sender, and ignores duplicate deliveries. It captures SMS text and URLs. Multimedia attachments and iMessage forwarding are outside this version.
 
 GitHub holds the source. The separate Node host runs the server and stores the board. GitHub Pages is static and cannot run the SMS webhook or SQLite database.
+
+## Use your existing Google Voice number
+
+Google Voice can forward incoming texts to Gmail. This option uses Apps Script to pass text from one exact Google Voice sender address into your hosted board.
+
+1. In Google Voice, open **Settings → Messages** and enable **Forward messages to email**. Text your Google Voice number from your regular cell.
+2. On your HTTPS Node host, set `GOOGLE_VOICE_SECRET` to a random secret of at least 32 characters (for example, generate one with `openssl rand -hex 32`). Set `PUBLIC_URL`, `APP_PASSWORD`, and `DATA_DIR` as above. Twilio settings are optional for Google Voice.
+3. While signed into the Gmail account receiving the forwards, create a private [Google Apps Script](https://script.google.com/) project and paste in `google-voice-importer.gs`.
+4. In **Project Settings → Script Properties**, add `VOICE_SENDER` (the full From address of your forwarded text), `BRAIN_DUMP_URL` (the HTTPS origin of your hosted board), and `BRAIN_DUMP_SECRET` (the same random secret as on the host). Keep these values out of GitHub.
+5. Run `importGoogleVoice` once, review and approve Google's Gmail access and external-request permissions, and check that the test card appears. Add a **Time-driven** trigger for `importGoogleVoice` every five minutes.
+
+Google's built-in Gmail service requests mailbox access. The script searches for the exact configured sender, does not change mailbox state, and sends only the matching text and Gmail message ID to your host. The first run can import up to seven days of matching forwards. The host prevents duplicate cards even if a run is retried. Use a different exact sender setting if Google Voice changes the From address for your conversation.
